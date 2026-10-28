@@ -1,0 +1,145 @@
+---
+title: "Stage 1 - Basic restaurant operation"
+---
+classDiagram
+    direction TB
+
+    class Main {
+        +main(String[] args)$ void
+    }
+    class GameController {
+        <<control>>
+        +MAX_TURNS: int$ = 18
+        -restaurant: Restaurant
+        -ui: ConsoleUI
+        +play() void
+        -playTurn(int turn) void
+        -waiterStep(int turn) void
+        -chefStep() void
+        -isVictory() boolean
+    }
+    class ConsoleUI {
+        <<boundary>>
+        -scanner: Scanner
+        +showTurnStart(int turn, Restaurant r) void
+        +showTurnEnd(int turn, Restaurant r) void
+        +showResult(boolean victory, Restaurant r) void
+        +showMessage(String msg) void
+        +showError(String msg) void
+        +askWaiterTask() int
+        +askCustomerId() int
+        +askChefTask() int
+    }
+    class ArrivalSchedule {
+        +customerArrivingOn(int turn) Customer
+    }
+    class Restaurant {
+        -revenueCents: int
+        +addCustomer(Customer c) void
+        +seatCustomer(int id) String
+        +findCustomer(int id) Customer
+        +addRevenue(int cents) void
+        +getPaidCount() int
+        +getAverageSatisfaction() double
+    }
+    class Waiter {
+        +seat(Restaurant r, int id) String
+        +takeOrder(Restaurant r, int id) String
+        +serve(Restaurant r, int id, int turn) String
+    }
+    class Chef {
+        +prepare(Restaurant r, int id) String
+    }
+    class Cashier {
+        +collectPayment(Restaurant r) String
+    }
+    class Customer {
+        -id: int
+        -satisfaction: int
+        -state: CustomerState
+        -servedTurn: int
+        +getSatisfactionLoss() int
+        +calculateBill(int baseCents) int
+        +chooseItem(Menu menu) MenuItem
+        +sitAt(Table t) void
+        +placeOrder(Order o) void
+        +receiveFood(int turn) void
+        +finishEating() void
+        +pay() void
+        +leaveUnhappy() void
+        +loseSatisfaction() void
+        +isWaitingForService() boolean
+    }
+    class Table {
+        -number: int
+        +isFree() boolean
+        +seat(Customer c) void
+        +free() void
+    }
+    class Order {
+        -priceCents: int
+        -unitsDone: int
+        -status: OrderStatus
+        +prepareOneUnit() void
+        +markServed() void
+        +markPaid() void
+        +cancel() void
+    }
+    class Menu {
+        +addItem(MenuItem item) void
+        +getItem(int index) MenuItem
+        +size() int
+    }
+    class MenuItem {
+        -name: String
+        -priceCents: int
+        -prepUnits: int
+    }
+    class Money {
+        +format(int cents)$ String
+    }
+    class CustomerState {
+        <<enumeration>>
+        WAITING
+        SEATED
+        ORDERED
+        EATING
+        READY_TO_PAY
+        PAID
+        LEFT
+    }
+    class OrderStatus {
+        <<enumeration>>
+        PREPARING
+        READY
+        SERVED
+        PAID
+        CANCELLED
+    }
+
+    Main ..> GameController : creates
+    GameController --> "1" ConsoleUI
+    GameController --> "1" Restaurant
+    GameController *-- "1" ArrivalSchedule
+    GameController *-- "1" Waiter
+    GameController *-- "1" Chef
+    GameController *-- "1" Cashier
+
+    Restaurant *-- "1" Menu
+    Restaurant *-- "2" Table
+    Restaurant o-- "0..6" Customer
+
+    Customer "0..1" -- "0..1" Table : sits at
+    Customer --> "0..1" Order
+    Customer --> CustomerState
+    Order --> "1" MenuItem
+    Order --> OrderStatus
+    Menu o-- "1..*" MenuItem
+
+    ArrivalSchedule ..> Customer : creates
+    Waiter ..> Restaurant
+    Chef ..> Restaurant
+    Cashier ..> Restaurant
+
+    note for Order "ENCAPSULATION: status only changes through<br>prepareOneUnit() / markServed() / markPaid() / cancel()"
+    note for Restaurant "COMPOSITION: Restaurant owns its Menu and Tables"

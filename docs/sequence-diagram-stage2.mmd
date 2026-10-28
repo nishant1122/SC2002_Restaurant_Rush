@@ -1,0 +1,117 @@
+---
+title: "Stage 2 use case - Serve a VIP customer from arrival to payment (stage-2/tests/victory.txt, turns 4-8)"
+---
+sequenceDiagram
+    autonumber
+    actor M as Manager
+    participant UI as :ConsoleUI
+    participant GC as :GameController
+    participant AS as :ArrivalSchedule
+    participant R as :Restaurant
+    participant W as :Waiter
+    participant CH as :Chef
+    participant CA as :Cashier
+    participant V as c2:VIPCustomer
+    participant O as o:Order
+
+    Note over M,O: Start: turn 4, Table 2 is free, C1 is eating at Table 1.
+
+    loop turn = 1..18 (turns 4-8 shown)
+        rect rgb(240,240,240)
+        Note over GC: TURN 4 - VIP arrives and is seated
+        GC->>AS: customerArrivingOn(4)
+        AS-->>GC: c2 = new VIPCustomer(2)
+        GC->>R: addCustomer(c2)
+        GC->>UI: showTurnStart(4, r)
+        loop until the Waiter choice is valid
+            GC->>UI: askWaiterTask(), askCustomerId()
+            M->>UI: 1 (Seat), 2
+            UI-->>GC: 1, 2
+            GC->>W: seat(r, 2)
+            W->>R: seatCustomer(2)
+            alt no free table / c2 not WAITING
+                R-->>GC: IllegalArgumentException
+                GC->>UI: showError(msg) - choose again, task not used
+            else Table 2 free
+                R->>V: sitAt(table2)
+                Note right of V: SEATED
+            end
+        end
+        GC->>V: loseSatisfaction()
+        V->>V: getSatisfactionLoss()
+        Note right of V: VIP override returns 5 (Regular = 8)<br>100 -> 95
+        end
+
+        rect rgb(240,240,240)
+        Note over GC: TURN 5 - order taken with VIP price, Chef cooks
+        GC->>UI: askWaiterTask(), askCustomerId()
+        M->>UI: 2 (Take order), 2
+        GC->>W: takeOrder(r, 2)
+        W->>V: chooseItem(menu)
+        V-->>W: Burger (rule: item (2-1) mod 3)
+        W->>V: calculateBill(1500)
+        Note right of V: VIP override: 10% off
+        V-->>W: 1350
+        W->>O: new Order(Burger, 1350)
+        W->>V: placeOrder(o)
+        Note right of V: ORDERED, price locked at $13.50
+        GC->>UI: askChefTask()
+        M->>UI: 2
+        GC->>CH: prepare(r, 2)
+        alt order is PREPARING
+            CH->>O: prepareOneUnit()
+            Note right of O: 1/1 units -> READY
+        else no order / not PREPARING
+            CH-->>GC: IllegalArgumentException (ask again)
+        end
+        GC->>CA: collectPayment(r)
+        Note right of CA: C1 pays this turn (oldest READY_TO_PAY)
+        GC->>V: loseSatisfaction()
+        Note right of V: still waiting for food: 95 -> 90
+        end
+
+        rect rgb(240,240,240)
+        Note over GC: TURN 6 - serve (order was READY before the Waiter acted)
+        M->>UI: 3 (Serve), 2
+        GC->>W: serve(r, 2, 6)
+        alt order status == READY
+            W->>V: receiveFood(6)
+            V->>O: markServed()
+            Note right of V: EATING, satisfaction stops dropping
+        end
+        end
+
+        rect rgb(240,240,240)
+        Note over GC: TURN 7 - finish eating
+        GC->>R: getCustomersInState(EATING)
+        opt c2.getServedTurn() < turn (6 < 7)
+            GC->>V: finishEating()
+            Note right of V: READY_TO_PAY (pays next turn at the earliest)
+        end
+        end
+
+        rect rgb(240,240,240)
+        Note over GC: TURN 8 - automatic payment, oldest first
+        GC->>CA: collectPayment(r)
+        loop each customer in arrival order
+            opt state == READY_TO_PAY (first one only)
+                CA->>V: getOrder().getPriceCents()
+                V-->>CA: 1350
+                CA->>R: addRevenue(1350)
+                CA->>V: pay()
+                V->>O: markPaid()
+                Note right of V: PAID, Table 2 freed,<br>satisfaction 90 recorded
+            end
+        end
+        end
+    end
+
+    Note over GC: After turn 18 - result check
+    GC->>R: getPaidCount(), getRevenueCents(), getAverageSatisfaction()
+    alt paid >= 4 AND revenue >= $45 AND avg >= 60
+        GC->>UI: showResult(true, r)
+        Note over UI: VICTORY (5 paid, $73.50, avg 75.6)
+    else
+        GC->>UI: showResult(false, r)
+        Note over UI: DEFEAT
+    end
